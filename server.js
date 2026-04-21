@@ -15,50 +15,53 @@ app.use(express.static('public'));
 const chatGeschiedenis = []; 
 let vectorStore;
 
-//  Documenten inladen 
+
 async function laadDocumenten() {
     console.log("Recepten inladen...");
     try {
         const loader = new DirectoryLoader("documenten", { ".pdf": (pad) => new PDFLoader(pad) });
         const ruweDocs = await loader.load();
+        
+        
         const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 1000, chunkOverlap: 200 });
         const gesplitsteDocs = await splitter.splitDocuments(ruweDocs);
 
+       
         const embeddings = new OpenAIEmbeddings({
-            azureOpenAIApiKey: "07987396f9e64e9e8bd717e14068702b",
+            azureOpenAIApiKey: process.env.AZURE_OPENAI_API_KEY,
             azureOpenAIApiInstanceName: "cmgt-ai",
             azureOpenAIApiDeploymentName: "text-embedding-3-small",
-            azureOpenAIApiVersion: "2025-03-01-preview",
+            azureOpenAIApiVersion: "2025-03-01-preview"
         });
+
         
         vectorStore = await MemoryVectorStore.fromDocuments(gesplitsteDocs, embeddings);
         console.log("✅ Recepten succesvol ingeladen!");
-    } catch (e) {
-        console.log("⚠️ PDF fout, maar we gaan door.");
+    } catch (error) {
+        console.error("❌ Fout bij inladen documenten:", error);
     }
 }
+
 laadDocumenten();
 
 
 const azureClient = new OpenAI({
-    apiKey: "07987396f9e64e9e8bd717e14068702b",
-    baseURL: "https://cmgt-ai.openai.azure.com/openai/deployments/gpt-4.1-mini",
+    apiKey: process.env.AZURE_OPENAI_API_KEY,
+    baseURL: `https://cmgt-ai.openai.azure.com/openai/deployments/gpt-4.1-mini`,
     defaultQuery: { 'api-version': "2025-03-01-preview" },
-    defaultHeaders: { 'api-key': "07987396f9e64e9e8bd717e14068702b" }
+    defaultHeaders: { 'api-key': process.env.AZURE_OPENAI_API_KEY }
 });
 
 app.post('/api/chat', async (req, res) => {
     try {
         const bericht = req.body.message;
 
-        
         let context = "";
         if (vectorStore) {
             const resultaten = await vectorStore.similaritySearch(bericht, 2);
             context = resultaten.map(d => d.pageContent).join("\n");
         }
 
-        // We roepen de AI aan zonder de buggy LangChain Chat GVDDD
         const response = await azureClient.chat.completions.create({
             model: "gpt-4.1-mini",
             messages: [
@@ -70,18 +73,21 @@ app.post('/api/chat', async (req, res) => {
 
         const antwoord = response.choices[0].message.content;
 
-        
+       
         console.log(`\x1b[36m[Tokens]\x1b[0m Totaal verbruikt: ${response.usage.total_tokens}`);
 
+      
         chatGeschiedenis.push({ role: "user", content: bericht });
         chatGeschiedenis.push({ role: "assistant", content: antwoord });
 
         res.json({ reply: antwoord });
-
     } catch (error) {
-        console.error("❌ Fout:", error);
-        res.status(500).json({ error: "Server fout" });
+        console.error("❌ Server Fout:", error);
+        res.status(500).json({ error: "Er ging iets mis bij de Chef." });
     }
 });
 
-app.listen(3000, () => console.log('--- Chef draait op poort 3000 ---'));
+const PORT = 3000;
+app.listen(PORT, () => {
+    console.log(`--- Chef draait op poort ${PORT} ---`);
+});
