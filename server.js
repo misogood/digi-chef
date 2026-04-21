@@ -22,7 +22,7 @@ async function laadDocumenten() {
         const loader = new DirectoryLoader("documenten", { ".pdf": (pad) => new PDFLoader(pad) });
         const ruweDocs = await loader.load();
         
-        
+       //hiermee maak split ik het script 
         const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 1000, chunkOverlap: 200 });
         const gesplitsteDocs = await splitter.splitDocuments(ruweDocs);
 
@@ -36,9 +36,9 @@ async function laadDocumenten() {
 
         
         vectorStore = await MemoryVectorStore.fromDocuments(gesplitsteDocs, embeddings);
-        console.log("✅ Recepten succesvol ingeladen!");
+        console.log(" Recepten succesvol ingeladen!");
     } catch (error) {
-        console.error("❌ Fout bij inladen documenten:", error);
+        console.error("Fout bij inladen documenten:", error);
     }
 }
 
